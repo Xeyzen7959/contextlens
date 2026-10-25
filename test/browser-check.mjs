@@ -1,0 +1,40 @@
+// Optional visual verification. Playwright is a developer-only prerequisite, never a CLI dependency.
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const { chromium } = await import(process.env.CONTEXTLENS_PLAYWRIGHT || 'playwright');
+const browser = await chromium.launch({ headless: true, ...(process.env.CONTEXTLENS_BROWSER ? { executablePath: process.env.CONTEXTLENS_BROWSER } : {}) });
+try {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(pathToFileURL(resolve('demo/report.html')).href);
+  assert.equal(await page.locator('.event').count(), 11);
+  assert.equal(await page.locator('details[open]').count(), 0);
+  await page.selectOption('#kind', 'instruction');
+  assert.equal(await page.locator('.event:visible').count(), 1);
+  await page.locator('[data-evidence]').first().click();
+  assert.equal(await page.locator('.event:visible').count(), 11);
+  await page.fill('#search', 'nothing-matches');
+  assert.equal(await page.locator('.event:visible').count(), 0);
+  assert.equal(await page.locator('#empty').isVisible(), true);
+  await page.fill('#search', '');
+  await page.locator('summary').first().focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('details[open]').count(), 1);
+  await page.keyboard.press('Enter');
+  const pending = page.waitForEvent('download');
+  await page.click('#export');
+  const download = await pending;
+  const exported = await readFile(await download.path(), 'utf8');
+  assert.ok(exported.includes('Share-safe view'));
+  for (const secret of ['src/greeting.ts', 'SYNTHETIC SOURCE', 'exec_command', '/synthetic-project', '2026-01-01']) assert.ok(!exported.includes(secret));
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: 'demo/screenshot.png' });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.locator('details').evaluateAll(elements => elements.forEach(element => element.open = true));
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.deepEqual(errors, []);
+  console.log('PASS: filtering, empty state, evidence links, keyboard disclosures, share-safe download, desktop screenshot and 375px layout.');
+} finally { await browser.close(); }

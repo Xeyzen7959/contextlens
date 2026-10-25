@@ -1,0 +1,14 @@
+{
+  "name": "contextlens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local, evidence-based profiler for Codex rollout transcripts",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node src/cli.ts",
+    "test": "node --test test/*.test.ts",
+    "demo": "node src/cli.ts demo/synthetic-codex.jsonl --out demo/report.html"
+  }
+}
